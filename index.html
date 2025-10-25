@@ -43,9 +43,9 @@
     }
   </style>
 
-  <!-- ✅ ライブラリは必ず先に読み込む！ -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <!-- ✅ 必ずこの順番で読み込む！ -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
 </head>
 
 <body>
@@ -63,7 +63,11 @@
     async function init() {
       debugBox.innerText = "モデル読込中...";
       try {
-        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        // ✅ ここでtmImageを正しく呼び出し
+        model = await window.tmImage.load(
+          MODEL_URL + "model.json",
+          MODEL_URL + "metadata.json"
+        );
         debugBox.innerText = "✅ モデル読込完了";
         startCamera();
       } catch (err) {
