@@ -3,213 +3,259 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>うさぎの気持ちAR🐇💭</title>
+  <title>うさぎの気持ちAR🐰</title>
+
+  <!-- まるい日本語フォント -->
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap" rel="stylesheet">
+
   <style>
+    :root {
+      --card-bg: rgba(255,255,255,0.9);
+      --card-shadow: 0 20px 40px rgba(255,150,200,0.4);
+      --text-main: #2b2b2b;
+      --text-sub: #444;
+      --accent: #ff6fa8;
+    }
+
     body {
-      background: #000;
-      color: #fff;
+      margin: 0;
+      background: radial-gradient(circle at 50% 20%, #fff 0%, #f6f3ff 60%, #e6e8ff 100%);
+      font-family: "Zen Maru Gothic", system-ui, sans-serif;
+      color: var(--text-main);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
-      margin: 0;
-      font-family: 'Poppins', 'Noto Sans JP', system-ui, sans-serif;
       overflow: hidden;
     }
 
-    video {
+    .stage {
+      position: relative;
       width: 90%;
       max-width: 480px;
-      border-radius: 16px;
-      box-shadow: 0 0 25px rgba(255, 255, 255, 0.2);
-      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    video {
+      width: 100%;
+      border-radius: 20px;
+      background: #000;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
       object-fit: cover;
     }
 
-    /* 🩷 メインのふきだし（今の気持ち） */
-    #labelOverlay {
+    /* 吹き出しカード */
+    .bubble {
       position: absolute;
-      bottom: 7.5%;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.8);
-      color: #ff8fb1;
-      padding: 14px 24px;
+      bottom: 0.5rem;
+
+      background: var(--card-bg);
       border-radius: 20px;
-      font-size: 1.4rem;
-      font-weight: 600;
-      text-align: center;
-      box-shadow: 0 0 20px rgba(255, 192, 203, 0.6);
-      backdrop-filter: blur(10px);
-      text-shadow: 0 0 10px rgba(255, 182, 193, 0.7);
-      animation: glow 2s ease-in-out infinite alternate;
-      min-width: 240px;
-      line-height: 1.4;
-    }
+      box-shadow: var(--card-shadow);
 
-    @keyframes glow {
-      0% { box-shadow: 0 0 10px rgba(255, 192, 203, 0.5); }
-      100% { box-shadow: 0 0 25px rgba(255, 192, 203, 1); }
-    }
-
-    /* 📊 サブテキスト（解説＋信頼度） */
-    #subText {
-      position: absolute;
-      bottom: 4%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.9);
-      text-shadow: 0 0 6px rgba(0,0,0,0.8);
-      text-align: center;
-      line-height: 1.4;
-      min-width: 240px;
+      padding: 14px 18px 12px;
+      min-width: 80%;
       max-width: 90%;
-      font-weight: 400;
+
+      text-align: center;
+      line-height: 1.4;
+      animation: float 3s ease-in-out infinite;
     }
 
-    /* 念のためスマホで文字がはみ出さないように */
-    @media (min-width: 600px) {
-      #labelOverlay { font-size: 1.6rem; }
-      #subText { font-size: 1rem; }
+    .mood-line {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-shadow: 0 0 8px rgba(255,111,168,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      word-break: keep-all;
+    }
+
+    .mood-main {
+      font-size: 1.3rem;
+    }
+
+    .mood-sub {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-top: 6px;
+    }
+
+    @keyframes float {
+      0%,100% { transform: translate(-50%,0); }
+      50%     { transform: translate(-50%,-4px); }
+    }
+
+    /* 小さい端末で読みやすく */
+    @media (max-width: 360px){
+      .mood-main { font-size:1.1rem; }
+      .mood-sub  { font-size:0.7rem; }
     }
   </style>
 
-  <!-- 安定版ライブラリ（こっちでいく：動くやつ） -->
+  <!-- ライブラリ（安定版の組） -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.6"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 </head>
 
 <body>
-  <video id="webcam" autoplay playsinline muted></video>
+  <div class="stage">
+    <video id="webcam" autoplay playsinline muted></video>
 
-  <!-- メイン吹き出し -->
-  <div id="labelOverlay">📸 モデルよみこみ中…</div>
-
-  <!-- 解説と信頼度 -->
-  <div id="subText"></div>
+    <div class="bubble" id="bubble">
+      <div class="mood-line">
+        <div class="mood-main" id="moodMain">？？いま調べてる…</div>
+      </div>
+      <div class="mood-sub" id="moodSub">
+        AIが考え中だよ（信頼度 ― %）
+      </div>
+    </div>
+  </div>
 
   <script>
-    // あなたのモデルURL
+    // ← あなたのTeachable Machineモデル
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
 
-    const video = document.getElementById("webcam");
-    const overlay = document.getElementById("labelOverlay");
-    const subText = document.getElementById("subText");
+    const video   = document.getElementById("webcam");
+    const moodMain = document.getElementById("moodMain");
+    const moodSub  = document.getElementById("moodSub");
 
     let model;
 
-    // クラス名→日本語ラベルに変換
-    // ＋ サブ説明文と色と絵文字セット
-    function getMoodInfo(className, probPercent) {
-      // デフォルト（知らないラベルのとき）
-      let mood = {
-        title: "？？いま調べてる…",
-        desc: `AIが考え中だよ（信頼度 ${probPercent}%）`,
-        color: "#ffffff",
-        emoji: "🐇"
+    // ラベル名 → かわいい表示に変換する関数
+    function prettyMood(labelName, prob) {
+      const pStr = (prob * 100).toFixed(1);
+
+      // 小文字比較用
+      const lower = labelName.toLowerCase();
+
+      // ここに「あなたのクラス名」を全部カバーする
+      // Teachable Machine側のクラス名が
+      // Relax / Curious / Alert / Grooming
+      // みたいな英語ならこっちでマッチさせる
+      if (lower.includes("relax")) {
+        return {
+          main: "💤 いま安心してるよ",
+          sub:  `とってもおだやか〜（信頼度 ${pStr}%）`
+        };
+      }
+
+      if (lower.includes("curious")) {
+        return {
+          main: "🐰❓ きょうみしんしん！",
+          sub:  `まわりを観察中（信頼度 ${pStr}%）`
+        };
+      }
+
+      if (lower.includes("alert")) {
+        return {
+          main: "⚡ ちょっと警戒してるかも",
+          sub:  `周囲をチェック中（信頼度 ${pStr}%）`
+        };
+      }
+
+      if (lower.includes("groom")) {
+        return {
+          main: "🫧 毛づくろいタイム",
+          sub:  `お手入れしてるところ（信頼度 ${pStr}%）`
+        };
+      }
+
+      // 日本語ラベルも一応カバー
+      if (lower.includes("リラックス")) {
+        return {
+          main: "💤 いま安心してるよ",
+          sub:  `おだやかモード（信頼度 ${pStr}%）`
+        };
+      }
+      if (lower.includes("警戒")) {
+        return {
+          main: "⚡ ちょっと警戒してるかも",
+          sub:  `周囲みてる（信頼度 ${pStr}%）`
+        };
+      }
+      if (lower.includes("好奇") || lower.includes("きょうみ") ) {
+        return {
+          main: "🐰❓ きょうみしんしん！",
+          sub:  `新しいものチェック中（信頼度 ${pStr}%）`
+        };
+      }
+      if (lower.includes("毛づくろい") || lower.includes("毛繕い") ) {
+        return {
+          main: "🫧 毛づくろいタイム",
+          sub:  `きれいきれい中（信頼度 ${pStr}%）`
+        };
+      }
+
+      // fallback（知らないラベル）
+      return {
+        main: `🐇 ${labelName}かな？`,
+        sub:  `AIの推定中（信頼度 ${pStr}%）`
       };
-
-      // Relax
-      if (className === "Relax") {
-        mood = {
-          title: "リラックス中 🌙🐰",
-          desc: `安心して落ち着いてるみたい（信頼度 ${probPercent}%）`,
-          color: "#ffb6c1", // やさしいピンク
-          emoji: "🌙🐰"
-        };
-      }
-
-      // Curious
-      if (className === "Curious") {
-        mood = {
-          title: "きょうみしんしん 👀💭",
-          desc: `新しいものを観察中（信頼度 ${probPercent}%）`,
-          color: "#87cefa", // 空色
-          emoji: "👀💭"
-        };
-      }
-
-      // Alert
-      if (className === "Alert") {
-        mood = {
-          title: "まわり警戒中 ⚡",
-          desc: `音や動きにすごく注意してるよ（信頼度 ${probPercent}%）`,
-          color: "#ffd700", // 黄色
-          emoji: "⚡"
-        };
-      }
-
-      // Grooming
-      if (className === "Grooming") {
-        mood = {
-          title: "おていれタイム 🫧",
-          desc: `身だしなみチェック中 / 毛づくろい（信頼度 ${probPercent}%）`,
-          color: "#c3a6ff", // ふわむらさき
-          emoji: "🫧"
-        };
-      }
-
-      return mood;
     }
 
     async function init() {
       try {
-        // モデル読み込み
         model = await tmImage.load(
           MODEL_URL + "model.json",
           MODEL_URL + "metadata.json"
         );
-        overlay.innerText = "📷 カメラ準備中…";
 
-        // カメラ開始
-        await setupCamera();
-      } catch (e) {
-        overlay.innerText = "❌ モデル読込エラー";
-        subText.innerText = e.message;
-      }
-    }
-
-    async function setupCamera() {
-      try {
+        // カメラ起動
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }, // ←背面カメラ
+          video: { facingMode: "environment" },
           audio: false
         });
         video.srcObject = stream;
-
         video.onloadedmetadata = () => {
           video.play();
-          predictLoop();
+          loop();
         };
-      } catch (e) {
-        overlay.innerText = "📱 カメラ許可してね";
-        subText.innerText = "設定からカメラONにすると動くよ";
+
+      } catch (err) {
+        moodMain.textContent = "⚠ モデルかカメラに問題があるかも";
+        moodSub.textContent  = err.message || "読み込みエラー";
       }
     }
 
-    async function predictLoop() {
-      const predictions = await model.predict(video);
+    async function loop() {
+      // videoが準備できててモデルもあるなら推論
+      if (model && video.readyState === 4) {
+        try {
+          const preds = await model.predict(video);
 
-      // 一番高い確率のラベルを選ぶ
-      let best = predictions[0];
-      for (let i = 1; i < predictions.length; i++) {
-        if (predictions[i].probability > best.probability) {
-          best = predictions[i];
+          if (preds && preds.length > 0) {
+            // 一番高いクラス
+            let best = preds[0];
+            for (let i = 1; i < preds.length; i++) {
+              if (preds[i].probability > best.probability) {
+                best = preds[i];
+              }
+            }
+
+            // かわいい文章に変換して表示
+            const moodText = prettyMood(best.className, best.probability);
+            moodMain.textContent = moodText.main;
+            moodSub.textContent  = moodText.sub;
+          } else {
+            moodMain.textContent = "🐇 うまく見えないかも";
+            moodSub.textContent  = "カメラを近づけてね";
+          }
+
+        } catch (err) {
+          moodMain.textContent = "💦 推定できなかった";
+          moodSub.textContent  = err.message || "error";
         }
       }
 
-      const percent = (best.probability * 100).toFixed(1);
-      const moodInfo = getMoodInfo(best.className, percent);
-
-      // 見た目更新
-      overlay.style.color = moodInfo.color;
-      overlay.textContent = moodInfo.title;
-
-      subText.textContent = moodInfo.desc;
-
-      requestAnimationFrame(predictLoop);
+      requestAnimationFrame(loop);
     }
 
     init();
