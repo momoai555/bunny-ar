@@ -97,7 +97,7 @@
 
     <div class="bubbleWrap">
       <div id="bubbleMain" class="bubbleMain">
-        ？？いま調べてる…
+        🐇　解析中…
       </div>
       <div id="bubbleSub" class="bubbleSub">
         AIが考え中だよ（信頼度 0%）
@@ -122,15 +122,15 @@
     // ゆるい一致で判定
     if (lower.includes("relax")) {
       return {
-        main: "💤 きょうはとっても安心モード",
-        sub:  "おだやかにリラックス中（信頼度 " + percentStr + "）"
+        main: "💤 おだやかモード",
+        sub:  "安心してリラックス中（信頼度 " + percentStr + "）"
       };
     }
 
     if (lower.includes("alert")) {
       return {
-        main: "⚡ まわりをじーっと観察中",
-        sub:  "ちょっと警戒してるかも（信頼度 " + percentStr + "）"
+        main: "⚡ まわり警戒中",
+        sub:  "音や動きに集中しているかも（信頼度 " + percentStr + "）"
       };
     }
 
@@ -143,7 +143,7 @@
 
     if (lower.includes("groom")) {
       return {
-        main: "🫧 きれいきれいタイム",
+        main: "✨ きれいきれいタイム",
         sub:  "毛づくろいしてるよ（信頼度 " + percentStr + "）"
       };
     }
