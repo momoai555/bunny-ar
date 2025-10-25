@@ -17,13 +17,16 @@
       height: 100vh;
       flex-direction: column;
     }
+
     video {
       width: 90%;
       max-width: 480px;
       border-radius: 12px;
       object-fit: cover;
       box-shadow: 0 0 15px rgba(255,255,255,0.2);
+      background:#111;
     }
+
     #labelOverlay {
       margin-top: 1rem;
       background: rgba(255,255,255,0.1);
@@ -33,79 +36,151 @@
       font-size: 1.2rem;
       backdrop-filter: blur(6px);
       text-shadow: 0 0 6px rgba(0,0,0,0.8);
+      min-width: 240px;
+      text-align:center;
     }
+
     #debugBox {
       position: fixed;
       bottom: 10px;
       right: 10px;
       font-size: 0.7rem;
       color: #ccc;
+      white-space: pre-line;
+      max-width: 60vw;
+      text-align: right;
+      line-height:1.4;
+      font-family: monospace;
     }
   </style>
 
-  <!-- ✅ 必ずこの順番で読み込む！ -->
+  <!-- ライブラリ読込（順番大事） -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
 </head>
 
 <body>
   <video id="camera" autoplay muted playsinline></video>
-  <div id="labelOverlay">📸 モデル読み込み中...</div>
-  <div id="debugBox">debug: init...</div>
+
+  <div id="labelOverlay">📸 初期化中…</div>
+
+  <div id="debugBox">debug: ページ読み込み中</div>
 
   <script>
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
-    let model;
+
     const video = document.getElementById("camera");
     const overlay = document.getElementById("labelOverlay");
     const debugBox = document.getElementById("debugBox");
 
-    async function init() {
-      debugBox.innerText = "モデル読込中...";
+    let model = null;
+
+    function dbg(msg) {
+      debugBox.innerText = msg;
+      console.log(msg);
+    }
+
+    async function loadModel() {
+      dbg("1. モデル読込開始中…");
       try {
-        // ✅ ここでtmImageを正しく呼び出し
+        // window.tmImage が存在するかまず確認
+        if (!window.tmImage) {
+          dbg("❌ 失敗: window.tmImage が無い");
+          overlay.innerText = "モデル準備エラー";
+          return;
+        } else {
+          dbg("✅ window.tmImage はある");
+        }
+
+        dbg("2. tmImage.load呼び出し");
         model = await window.tmImage.load(
           MODEL_URL + "model.json",
           MODEL_URL + "metadata.json"
         );
-        debugBox.innerText = "✅ モデル読込完了";
+
+        if (!model) {
+          dbg("❌ 失敗: model がnull");
+          overlay.innerText = "モデル取得できず";
+          return;
+        }
+
+        dbg("✅ 3. モデル読込成功");
+        overlay.innerText = "モデルOK。カメラ起動中…";
         startCamera();
       } catch (err) {
-        overlay.innerText = "❌ モデル読込失敗";
-        debugBox.innerText = "エラー: " + err.message;
+        dbg("❌ モデル読込中エラー:\n" + err.message);
+        overlay.innerText = "モデル読込失敗💦";
       }
     }
 
     async function startCamera() {
+      dbg("4. カメラアクセス要求中…");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" },
           audio: false
         });
         video.srcObject = stream;
+
         video.onloadedmetadata = () => {
           video.play();
-          debugBox.innerText = "🎥 カメラ開始";
-          loop();
+          dbg("✅ 5. カメラ開始\n解像度: "
+            + video.videoWidth + "x" + video.videoHeight);
+          overlay.innerText = "推定中…🐰";
+          startPredictLoop();
         };
       } catch (err) {
-        overlay.innerText = "📱 カメラ許可が必要です";
-        debugBox.innerText = "カメラエラー: " + err.message;
+        dbg("❌ カメラエラー:\n" + err.message);
+        overlay.innerText = "📱 カメラ許可してください";
       }
     }
 
-    async function loop() {
-      if (model && video.readyState === 4) {
-        const predictions = await model.predict(video);
-        let best = predictions.reduce((a,b) => a.probability > b.probability ? a : b);
-        overlay.innerText = `${best.className} ${(best.probability*100).toFixed(1)}% 🐇`;
-        debugBox.innerText = `pred: ${best.className} / ${(best.probability*100).toFixed(1)}%`;
+    async function startPredictLoop() {
+      dbg("6. 推論ループ開始");
+      async function step() {
+        if (!model) {
+          overlay.innerText = "モデルなし";
+          dbg("⚠ model == null");
+        } else if (video.readyState === 4) {
+          try {
+            const predictions = await model.predict(video);
+            if (!predictions || predictions.length === 0) {
+              overlay.innerText = "予測なし🤔";
+              dbg("⚠ predictions.length === 0");
+            } else {
+              let best = predictions[0];
+              for (let i = 1; i < predictions.length; i++) {
+                if (predictions[i].probability > best.probability) {
+                  best = predictions[i];
+                }
+              }
+
+              const percent = (best.probability * 100).toFixed(1);
+              overlay.innerText = `${best.className} ${percent}% 🐇`;
+
+              let dump = "7. 推論成功\n";
+              predictions.forEach(p => {
+                dump += `${p.className}: ${(p.probability*100).toFixed(1)}%\n`;
+              });
+              dbg(dump);
+            }
+          } catch (err) {
+            overlay.innerText = "推論エラー💦";
+            dbg("❌ 推論エラー:\n" + err.message);
+          }
+        } else {
+          dbg("⏳ video.readyState=" + video.readyState);
+        }
+        requestAnimationFrame(step);
       }
-      requestAnimationFrame(loop);
+      requestAnimationFrame(step);
     }
 
-    init();
+    // ---- スタート ----
+    window.addEventListener("load", () => {
+      dbg("0. ページonload → モデル読み込みへ");
+      loadModel();
+    });
   </script>
 </body>
 </html>
-
