@@ -1,103 +1,107 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>うさぎの気持ちAR🐰</title>
-<style>
-body {
-  background-color: #000;
-  margin: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  color: white;
-  font-family: "Noto Sans JP", sans-serif;
-}
-#camera {
-  width: 90%;
-  max-width: 480px;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(255,255,255,0.3);
-}
-#labelOverlay {
-  position: absolute;
-  bottom: 10%;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  padding: 8px 16px;
-  font-size: 1.2em;
-  backdrop-filter: blur(6px);
-}
-#debugBox {
-  position: fixed;
-  bottom: 8px;
-  right: 10px;
-  font-size: 0.7em;
-  color: #ccc;
-}
-</style>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>うさぎの気持ちAR🐰</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    video {
+      width: 90%;
+      max-width: 480px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 0 15px rgba(255,255,255,0.2);
+    }
+    #labelOverlay {
+      margin-top: 1rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 8px 16px;
+      font-size: 1.2rem;
+      backdrop-filter: blur(6px);
+      text-shadow: 0 0 6px rgba(0,0,0,0.8);
+    }
+    #debugBox {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 0.7rem;
+      color: #ccc;
+    }
+  </style>
+
+  <!-- ✅ ライブラリは必ず先に読み込む！ -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 </head>
 
 <body>
-<video id="camera" autoplay muted playsinline></video>
-<div id="labelOverlay">📸 読み込み中...</div>
-<div id="debugBox">debug: init...</div>
+  <video id="camera" autoplay muted playsinline></video>
+  <div id="labelOverlay">📸 モデル読み込み中...</div>
+  <div id="debugBox">debug: init...</div>
 
-<script>
-const URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
-let model, webcam, labelContainer, maxPredictions;
+  <script>
+    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
+    let model;
+    const video = document.getElementById("camera");
+    const overlay = document.getElementById("labelOverlay");
+    const debugBox = document.getElementById("debugBox");
 
-const video = document.getElementById("camera");
-const overlay = document.getElementById("labelOverlay");
-const debugBox = document.getElementById("debugBox");
+    async function init() {
+      debugBox.innerText = "モデル読込中...";
+      try {
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        debugBox.innerText = "✅ モデル読込完了";
+        startCamera();
+      } catch (err) {
+        overlay.innerText = "❌ モデル読込失敗";
+        debugBox.innerText = "エラー: " + err.message;
+      }
+    }
 
-async function init() {
-  debugBox.innerText = "モデル読込中...";
-  try {
-    model = await tmImage.load(URL + "model.json", URL + "metadata.json");
-    debugBox.innerText = "✅ モデル読込OK";
-    startCamera();
-  } catch (err) {
-    debugBox.innerText = "❌ モデル読込失敗: " + err.message;
-    overlay.innerText = "モデル読込失敗💦";
-  }
-}
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          debugBox.innerText = "🎥 カメラ開始";
+          loop();
+        };
+      } catch (err) {
+        overlay.innerText = "📱 カメラ許可が必要です";
+        debugBox.innerText = "カメラエラー: " + err.message;
+      }
+    }
 
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false
-    });
-    video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      video.play();
-      debugBox.innerText = "🎥 カメラ開始";
-      loop();
-    };
-  } catch (err) {
-    debugBox.innerText = "カメラエラー: " + err.message;
-    overlay.innerText = "📱 カメラ許可が必要です";
-  }
-}
+    async function loop() {
+      if (model && video.readyState === 4) {
+        const predictions = await model.predict(video);
+        let best = predictions.reduce((a,b) => a.probability > b.probability ? a : b);
+        overlay.innerText = `${best.className} ${(best.probability*100).toFixed(1)}% 🐇`;
+        debugBox.innerText = `pred: ${best.className} / ${(best.probability*100).toFixed(1)}%`;
+      }
+      requestAnimationFrame(loop);
+    }
 
-async function loop() {
-  if (model && video.readyState === 4) {
-    const prediction = await model.predict(video);
-    let best = prediction.reduce((a,b) => a.probability > b.probability ? a : b);
-    overlay.innerText = `${best.className} (${(best.probability*100).toFixed(1)}%) 🐇`;
-    debugBox.innerText = "pred: " + best.className + " / " + (best.probability*100).toFixed(1) + "%";
-  }
-  requestAnimationFrame(loop);
-}
-
-init();
-</script>
+    init();
+  </script>
 </body>
 </html>
+
