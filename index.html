@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>うさぎの気持ちAR🐰</title>
+  <title>うさぎの気持ちAR🐇💭</title>
   <style>
     body {
       background: #000;
@@ -14,74 +14,201 @@
       justify-content: center;
       height: 100vh;
       margin: 0;
-      font-family: sans-serif;
+      font-family: 'Poppins', 'Noto Sans JP', system-ui, sans-serif;
+      overflow: hidden;
     }
+
     video {
       width: 90%;
       max-width: 480px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(255,255,255,0.3);
+      border-radius: 16px;
+      box-shadow: 0 0 25px rgba(255, 255, 255, 0.2);
       background: #111;
+      object-fit: cover;
     }
+
+    /* 🩷 メインのふきだし（今の気持ち） */
     #labelOverlay {
-      margin-top: 1rem;
-      font-size: 1.2rem;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 12px;
-      padding: 8px 16px;
-      backdrop-filter: blur(6px);
+      position: absolute;
+      bottom: 7.5%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      color: #ff8fb1;
+      padding: 14px 24px;
+      border-radius: 20px;
+      font-size: 1.4rem;
+      font-weight: 600;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(255, 192, 203, 0.6);
+      backdrop-filter: blur(10px);
+      text-shadow: 0 0 10px rgba(255, 182, 193, 0.7);
+      animation: glow 2s ease-in-out infinite alternate;
+      min-width: 240px;
+      line-height: 1.4;
+    }
+
+    @keyframes glow {
+      0% { box-shadow: 0 0 10px rgba(255, 192, 203, 0.5); }
+      100% { box-shadow: 0 0 25px rgba(255, 192, 203, 1); }
+    }
+
+    /* 📊 サブテキスト（解説＋信頼度） */
+    #subText {
+      position: absolute;
+      bottom: 4%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 0 6px rgba(0,0,0,0.8);
+      text-align: center;
+      line-height: 1.4;
+      min-width: 240px;
+      max-width: 90%;
+      font-weight: 400;
+    }
+
+    /* 念のためスマホで文字がはみ出さないように */
+    @media (min-width: 600px) {
+      #labelOverlay { font-size: 1.6rem; }
+      #subText { font-size: 1rem; }
     }
   </style>
 
-  <!-- ✅ これが重要：古い安定版 -->
+  <!-- 安定版ライブラリ（こっちでいく：動くやつ） -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.6"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 </head>
 
 <body>
   <video id="webcam" autoplay playsinline muted></video>
-  <div id="labelOverlay">📸 モデル読込中…</div>
+
+  <!-- メイン吹き出し -->
+  <div id="labelOverlay">📸 モデルよみこみ中…</div>
+
+  <!-- 解説と信頼度 -->
+  <div id="subText"></div>
 
   <script>
+    // あなたのモデルURL
     const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
-    const overlay = document.getElementById("labelOverlay");
-    const video = document.getElementById("webcam");
 
-    let model, webcam;
+    const video = document.getElementById("webcam");
+    const overlay = document.getElementById("labelOverlay");
+    const subText = document.getElementById("subText");
+
+    let model;
+
+    // クラス名→日本語ラベルに変換
+    // ＋ サブ説明文と色と絵文字セット
+    function getMoodInfo(className, probPercent) {
+      // デフォルト（知らないラベルのとき）
+      let mood = {
+        title: "？？いま調べてる…",
+        desc: `AIが考え中だよ（信頼度 ${probPercent}%）`,
+        color: "#ffffff",
+        emoji: "🐇"
+      };
+
+      // Relax
+      if (className === "Relax") {
+        mood = {
+          title: "リラックス中 🌙🐰",
+          desc: `安心して落ち着いてるみたい（信頼度 ${probPercent}%）`,
+          color: "#ffb6c1", // やさしいピンク
+          emoji: "🌙🐰"
+        };
+      }
+
+      // Curious
+      if (className === "Curious") {
+        mood = {
+          title: "きょうみしんしん 👀💭",
+          desc: `新しいものを観察中（信頼度 ${probPercent}%）`,
+          color: "#87cefa", // 空色
+          emoji: "👀💭"
+        };
+      }
+
+      // Alert
+      if (className === "Alert") {
+        mood = {
+          title: "まわり警戒中 ⚡",
+          desc: `音や動きにすごく注意してるよ（信頼度 ${probPercent}%）`,
+          color: "#ffd700", // 黄色
+          emoji: "⚡"
+        };
+      }
+
+      // Grooming
+      if (className === "Grooming") {
+        mood = {
+          title: "おていれタイム 🫧",
+          desc: `身だしなみチェック中 / 毛づくろい（信頼度 ${probPercent}%）`,
+          color: "#c3a6ff", // ふわむらさき
+          emoji: "🫧"
+        };
+      }
+
+      return mood;
+    }
 
     async function init() {
       try {
-        // ✅ 古いtmImageの呼び方
-        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-        overlay.innerText = "✅ モデル読込完了";
+        // モデル読み込み
+        model = await tmImage.load(
+          MODEL_URL + "model.json",
+          MODEL_URL + "metadata.json"
+        );
+        overlay.innerText = "📷 カメラ準備中…";
+
+        // カメラ開始
         await setupCamera();
       } catch (e) {
-        overlay.innerText = "❌ モデル読込失敗: " + e.message;
+        overlay.innerText = "❌ モデル読込エラー";
+        subText.innerText = e.message;
       }
     }
 
     async function setupCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: { facingMode: "environment" }, // ←背面カメラ
           audio: false
         });
         video.srcObject = stream;
+
         video.onloadedmetadata = () => {
           video.play();
           predictLoop();
         };
       } catch (e) {
-        overlay.innerText = "📱 カメラ許可してください";
+        overlay.innerText = "📱 カメラ許可してね";
+        subText.innerText = "設定からカメラONにすると動くよ";
       }
     }
 
     async function predictLoop() {
-      if (!model) return;
-      const prediction = await model.predict(video);
-      const best = prediction.reduce((a,b)=>a.probability>b.probability?a:b);
-      overlay.innerText = `${best.className} ${(best.probability*100).toFixed(1)}% 🐇`;
+      const predictions = await model.predict(video);
+
+      // 一番高い確率のラベルを選ぶ
+      let best = predictions[0];
+      for (let i = 1; i < predictions.length; i++) {
+        if (predictions[i].probability > best.probability) {
+          best = predictions[i];
+        }
+      }
+
+      const percent = (best.probability * 100).toFixed(1);
+      const moodInfo = getMoodInfo(best.className, percent);
+
+      // 見た目更新
+      overlay.style.color = moodInfo.color;
+      overlay.textContent = moodInfo.title;
+
+      subText.textContent = moodInfo.desc;
+
       requestAnimationFrame(predictLoop);
     }
 
