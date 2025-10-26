@@ -97,60 +97,85 @@
 
     <div class="bubbleWrap">
       <div id="bubbleMain" class="bubbleMain">🐇　解析中…</div>
-      <div id="bubbleSub" class="bubbleSub">AIが考え中だよ（信頼度 0%）</div>
+      <div id="bubbleSub" class="bubbleSub">うさぎさん探してるよ…</div>
     </div>
   </div>
 
 <script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/-NL3fIAqm/";
 
-const videoEl = document.getElementById("webcam");
-const bubbleMain = document.getElementById("bubbleMain");
-const bubbleSub  = document.getElementById("bubbleSub");
+const videoEl     = document.getElementById("webcam");
+const bubbleMain  = document.getElementById("bubbleMain");
+const bubbleSub   = document.getElementById("bubbleSub");
 
 let model;
 
-// 直近の「高い確信があったときのラベル」を保存しておく
-// { label: "Happy", conf: 0.87, time: Date.now() }
+// 直近で「うさぎあり」と本気で思えたやつ
 let lastConfident = null;
 
-// やさしい日本語メッセージ
+// ラベル→可愛い日本語メッセージ
 function moodMessage(label, percentStr) {
   const lower = label.toLowerCase();
 
   if (lower.includes("relax")) {
-    return { main: "💤 おだやかモード", sub: "安心してのんびり中（信頼度 " + percentStr + "）" };
+    return {
+      main: "💤 おだやかモード",
+      sub:  "安心してのんびり中（信頼度 " + percentStr + "）"
+    };
   }
   if (lower.includes("curious")) {
-    return { main: "🐰❓ きょうみしんしん！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
+    return {
+      main: "🐰❓ きょうみしんしん！",
+      sub:  "新しいものをチェックしてるよ（信頼度 " + percentStr + "）"
+    };
   }
   if (lower.includes("alert")) {
-    return { main: "⚡ ピーン！警戒中", sub: "音や動きをじっと見てる（信頼度 " + percentStr + "）" };
+    return {
+      main: "⚡ ピーン！警戒中",
+      sub:  "音や動きをじっと見てる（信頼度 " + percentStr + "）"
+    };
   }
   if (lower.includes("groom")) {
-    return { main: "🫧 きれいきれいタイム", sub: "毛づくろいしてるよ（信頼度 " + percentStr + "）" };
+    return {
+      main: "✨ きれいきれいタイム",
+      sub:  "毛づくろいしてるよ（信頼度 " + percentStr + "）"
+    };
   }
   if (lower.includes("happy")) {
-    return { main: "💗 はしゃぎモード！", sub: "ぴょんぴょん跳ねてごきげん（信頼度 " + percentStr + "）" };
+    return {
+      main: "💗 はしゃぎモード！",
+      sub:  "ぴょんぴょん跳ねてごきげん（信頼度 " + percentStr + "）"
+    };
   }
   if (lower.includes("angry")) {
-    return { main: "💢 足ダン発動！？", sub: "ちょっとイラッとしてるかも（信頼度 " + percentStr + "）" };
+    return {
+      main: "💢 足ダン発動！？",
+      sub:  "ちょっとイラッとしてるかも（信頼度 " + percentStr + "）"
+    };
   }
-  return { main: "🐇 " + label, sub: "AIの推定だよ（信頼度 " + percentStr + "）" };
+
+  // None / NoBunny / その他 未知
+  return {
+    main: "🐇 解析中…",
+    sub:  "うさぎさん探してるよ…"
+  };
 }
 
 // 初期化
 async function init() {
-  // モデル
+  // モデル読み込み
   try {
-    model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+    model = await tmImage.load(
+      MODEL_URL + "model.json",
+      MODEL_URL + "metadata.json"
+    );
   } catch (e) {
     bubbleMain.textContent = "💦 モデル読めなかった…";
     bubbleSub.textContent  = "あとでもういちど開いてみてね";
     return;
   }
 
-  // カメラ
+  // カメラ開始
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" },
@@ -168,11 +193,12 @@ async function init() {
   }
 }
 
-// ループ
+// 毎フレーム判定
 async function loop() {
   if (model && videoEl.readyState === 4) {
     try {
       const predictions = await model.predict(videoEl);
+
       if (predictions && predictions.length > 0) {
         // 一番確率高いクラス
         let best = predictions[0];
@@ -182,31 +208,38 @@ async function loop() {
           }
         }
 
-        const conf = best.probability;
-        const label = best.className;
-        const percentStr = (conf * 100).toFixed(1) + "%";
+        const conf        = best.probability;
+        const rawLabel    = best.className;
+        const percentStr  = (conf * 100).toFixed(1) + "%";
+        const now         = Date.now();
 
-        // もし確信度が高い(>=0.6)なら「これは本物っぽい」と記録しておく
-        if (conf >= 0.6) {
+        // None扱いかどうか（"None" とか "NoBunny" とか、あなたの付けたクラス名に合わせて増やせる）
+        const isNoneLike =
+          rawLabel.toLowerCase().includes("none") ||
+          rawLabel.toLowerCase().includes("nobunny");
+
+        // 確信が高い＆それがNoneじゃない → それを「現在の気持ち」として保存
+        if (conf >= 0.6 && !isNoneLike) {
           lastConfident = {
-            label: label,
-            conf: conf,
-            time: Date.now()
+            label: rawLabel,
+            conf:  conf,
+            time:  now
           };
         }
 
-        // ここで「今うさぎがいない扱い」を決める
-        // ルール：
-        // - 直近1秒以内に高確信のフレームが一度もない → 解析中に戻す
-        const now = Date.now();
+        // 表示ロジック：
+        // - 今回がNoneっぽい or 確信弱い → 解析中モード
+        // - そうじゃない → 可愛い日本語メッセージ
+        //
+        // さらに、「直近1秒以内にちゃんとうさぎを認識できた記録(lastConfident)があるならそれを維持」
+        // そうじゃなければ解析中に戻す
         const recentlySeen =
           lastConfident && (now - lastConfident.time < 1000);
 
-        if (!recentlySeen) {
+        if (isNoneLike || !recentlySeen) {
           bubbleMain.textContent = "🐇 解析中…";
           bubbleSub.textContent  = "うさぎさん探してるよ…";
         } else {
-          // 直近でちゃんと確信できたやつがあるならそれを表示
           const msg = moodMessage(lastConfident.label, (lastConfident.conf * 100).toFixed(1) + "%");
           bubbleMain.textContent = msg.main;
           bubbleSub.textContent  = msg.sub;
@@ -225,3 +258,4 @@ init();
 </script>
 </body>
 </html>
+
