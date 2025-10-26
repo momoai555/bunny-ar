@@ -96,149 +96,106 @@
     <video id="webcam" autoplay playsinline muted></video>
 
     <div class="bubbleWrap">
-      <div id="bubbleMain" class="bubbleMain">
-        🐇　解析中…
-      </div>
-      <div id="bubbleSub" class="bubbleSub">
-        AIが考え中だよ（信頼度 0%）
-      </div>
+      <div id="bubbleMain" class="bubbleMain">🐇　解析中…</div>
+      <div id="bubbleSub" class="bubbleSub">AIが考え中だよ（信頼度 0%）</div>
     </div>
   </div>
 
 <script>
-  const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ggc7-ON3j/";
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/-NL3fIAqm/";
 
-  const videoEl    = document.getElementById("webcam");
-  const bubbleMain = document.getElementById("bubbleMain");
-  const bubbleSub  = document.getElementById("bubbleSub");
+const videoEl = document.getElementById("webcam");
+const bubbleMain = document.getElementById("bubbleMain");
+const bubbleSub  = document.getElementById("bubbleSub");
 
-  let model;
-  let classLabels = [];
+let model;
+let recentResults = [];
 
-  // ラベル名 → かわいいセリフ
-  function moodMessage(labelName, percentStr) {
-    const lower = labelName.toLowerCase();
+// 判定結果を可愛い日本語に変換
+function moodMessage(label, percentStr) {
+  const lower = label.toLowerCase();
 
-    // ゆるい一致で判定
-    if (lower.includes("relax")) {
-      return {
-        main: "💤 おだやかモード",
-        sub:  "安心してリラックス中（信頼度 " + percentStr + "）"
-      };
-    }
+  if (lower.includes("relax")) {
+    return { main: "💤 おだやかモード", sub: "安心してのんびり中（信頼度 " + percentStr + "）" };
+  }
+  if (lower.includes("curious")) {
+    return { main: "🐰❓ きょうみしんしん！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
+  }
+  if (lower.includes("alert")) {
+    return { main: "⚡ ピーン！警戒中", sub: "音や動きをじっと見てる（信頼度 " + percentStr + "）" };
+  }
+  if (lower.includes("groom")) {
+    return { main: "✨ きれいきれいタイム", sub: "毛づくろいしてるよ（信頼度 " + percentStr + "）" };
+  }
+  if (lower.includes("happy")) {
+    return { main: "💗 はしゃぎモード！", sub: "ぴょんぴょん跳ねてごきげん（信頼度 " + percentStr + "）" };
+  }
+  if (lower.includes("angry")) {
+    return { main: "💢 足ダン発動！？", sub: "ちょっとイラッとしてるかも（信頼度 " + percentStr + "）" };
+  }
+  return { main: "🐇 " + label, sub: "AIの推定だよ（信頼度 " + percentStr + "）" };
+}
 
-    if (lower.includes("alert")) {
-      return {
-        main: "⚡ まわり警戒中",
-        sub:  "音や動きに集中しているかも（信頼度 " + percentStr + "）"
-      };
-    }
+async function init() {
+  try {
+    model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+  } catch (e) {
+    bubbleMain.textContent = "💦 モデル読めなかった…";
+    bubbleSub.textContent  = "あとでもういちど開いてみてね";
+    return;
+  }
 
-    if (lower.includes("curious")) {
-      return {
-        main: "🐰❓ きょうみしんしん！",
-        sub:  "新しいものチェック中（信頼度 " + percentStr + "）"
-      };
-    }
-
-    if (lower.includes("groom")) {
-      return {
-        main: "✨ きれいきれいタイム",
-        sub:  "毛づくろいしてるよ（信頼度 " + percentStr + "）"
-      };
-    }
-
-    // fallback
-    return {
-      main: "🐇 " + labelName + "っぽいよ",
-      sub:  "AIの推定だよ（信頼度 " + percentStr + "）"
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false
+    });
+    videoEl.srcObject = stream;
+    videoEl.onloadedmetadata = () => {
+      videoEl.play();
+      loop();
     };
+  } catch (e) {
+    bubbleMain.textContent = "📱 カメラ許可してね";
+    bubbleSub.textContent  = "カメラがないと読めないんだ…";
+    return;
   }
+}
 
-  async function init() {
-    // 1. モデル読み込み
+async function loop() {
+  if (model && videoEl.readyState === 4) {
     try {
-      model = await tmImage.load(
-        MODEL_URL + "model.json",
-        MODEL_URL + "metadata.json"
-      );
-
-      // ここが今回いちばん大事：
-      // Teachable Machineはクラス名一覧をmetadata側に持ってる
-      classLabels = model.getClassLabels
-        ? model.getClassLabels()
-        : []; // たとえば ["Relax","Curious","Alert","Grooming"]
-
-    } catch (e) {
-      bubbleMain.textContent = "💦 モデル読めなかった…";
-      bubbleSub.textContent  = "あとでもういちど開いてみてね";
-      return;
-    }
-
-    // 2. カメラ起動
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      });
-      videoEl.srcObject = stream;
-      videoEl.onloadedmetadata = () => {
-        videoEl.play();
-        loop();
-      };
-    } catch (e) {
-      bubbleMain.textContent = "📱 カメラ許可してね";
-      bubbleSub.textContent  = "カメラがないと読めないんだ…";
-      return;
-    }
-  }
-
-  async function loop() {
-    if (model && videoEl.readyState === 4) {
-      try {
-        // 今のフレームを推論
-        const predictions = await model.predict(videoEl);
-        // predictionsは [{className:"Class 1", probability:0.9}, ...] みたいになってることがある
-
-        if (predictions && predictions.length > 0) {
-          // いちばん確率が高いインデックスを探す
-          let bestIndex = 0;
-          for (let i = 1; i < predictions.length; i++) {
-            if (predictions[i].probability > predictions[bestIndex].probability) {
-              bestIndex = i;
-            }
+      const predictions = await model.predict(videoEl);
+      if (predictions && predictions.length > 0) {
+        let best = predictions[0];
+        for (let i = 1; i < predictions.length; i++) {
+          if (predictions[i].probability > best.probability) {
+            best = predictions[i];
           }
-
-          const bestProb = predictions[bestIndex].probability;
-          // 本当のラベル名を metadata から拾う
-          // もし metadata から取れてなかったら、classNameをそのまま使う
-          const trueLabel =
-            (classLabels[bestIndex] !== undefined && classLabels[bestIndex] !== null)
-              ? classLabels[bestIndex]
-              : predictions[bestIndex].className;
-
-          const percentStr = (bestProb * 100).toFixed(1) + "%";
-
-          // かわいい文章に変換
-          const msg = moodMessage(trueLabel, percentStr);
-
-          bubbleMain.textContent = msg.main;
-          bubbleSub.textContent  = msg.sub;
-        } else {
-          bubbleMain.textContent = "👀 まだよくわかんない…";
-          bubbleSub.textContent  = "もうちょっと近づけてみて？";
         }
+        // 最新結果を追加して古いのを削除
+        recentResults.push(best.className);
+        if (recentResults.length > 10) recentResults.shift();
 
-      } catch (err) {
-        bubbleMain.textContent = "⚠ 推定エラー";
-        bubbleSub.textContent  = err.message;
+        // 直近10回で一番多いラベルを採用
+        const majority = recentResults.sort((a,b) =>
+          recentResults.filter(v=>v===a).length - recentResults.filter(v=>v===b).length
+        ).pop();
+
+        const percentStr = (best.probability * 100).toFixed(1) + "%";
+        const msg = moodMessage(majority, percentStr);
+        bubbleMain.textContent = msg.main;
+        bubbleSub.textContent  = msg.sub;
       }
+    } catch (err) {
+      bubbleMain.textContent = "⚠ 推定エラー";
+      bubbleSub.textContent  = err.message;
     }
-
-    requestAnimationFrame(loop);
   }
+  requestAnimationFrame(loop);
+}
 
-  init();
+init();
 </script>
 </body>
 </html>
