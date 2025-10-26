@@ -86,7 +86,6 @@
   }
 </style>
 
-<!-- ここ大事：安定版ライブラリ -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.6"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 </head>
@@ -111,7 +110,6 @@ const bubbleSub  = document.getElementById("bubbleSub");
 let model;
 let recentResults = [];
 
-// 判定結果を可愛い日本語に変換
 function moodMessage(label, percentStr) {
   const lower = label.toLowerCase();
 
@@ -119,7 +117,7 @@ function moodMessage(label, percentStr) {
     return { main: "💤 おだやかモード", sub: "安心してのんびり中（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("curious")) {
-    return { main: "🐰❓ きょうみしんしん！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
+    return { main: "🐰❓ 興味津々！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("alert")) {
     return { main: "⚡ ピーン！警戒中", sub: "音や動きをじっと見てる（信頼度 " + percentStr + "）" };
@@ -128,7 +126,7 @@ function moodMessage(label, percentStr) {
     return { main: "✨ きれいきれいタイム", sub: "毛づくろいしてるよ（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("happy")) {
-    return { main: "💗 はしゃぎモード！", sub: "うれしい！ごきげん（信頼度 " + percentStr + "）" };
+    return { main: "💗 はしゃぎモード！", sub: "ぴょんぴょん跳ねてごきげん（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("angry")) {
     return { main: "💢 足ダン発動！？", sub: "ちょっとイラッとしてるかも（信頼度 " + percentStr + "）" };
@@ -173,11 +171,18 @@ async function loop() {
             best = predictions[i];
           }
         }
-        // 最新結果を追加して古いのを削除
+
+        // 🩵 追加：映っていない時は「解析中」
+        if (best.probability < 0.5) {
+          bubbleMain.textContent = "🐇 解析中…";
+          bubbleSub.textContent  = "AIが考え中だよ（信頼度 " + (best.probability * 100).toFixed(1) + "%）";
+          requestAnimationFrame(loop);
+          return;
+        }
+
         recentResults.push(best.className);
         if (recentResults.length > 10) recentResults.shift();
 
-        // 直近10回で一番多いラベルを採用
         const majority = recentResults.sort((a,b) =>
           recentResults.filter(v=>v===a).length - recentResults.filter(v=>v===b).length
         ).pop();
