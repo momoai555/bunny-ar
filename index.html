@@ -1,105 +1,3 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>うさぎのきもちAR🐰</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap" rel="stylesheet">
-
-<style>
-  body {
-    margin: 0;
-    background: radial-gradient(circle at center, #000 0%, #000 60%, #000 100%);
-    color: #fff;
-    font-family: "Zen Maru Gothic", system-ui, sans-serif;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .frame {
-    position: relative;
-    width: 90vw;
-    max-width: 480px;
-    border-radius: 24px;
-    background: radial-gradient(circle at top left,
-      rgba(255,255,255,0.18),
-      rgba(0,0,0,0) 70%);
-    box-shadow:
-      0 40px 80px rgba(255,192,203,0.25),
-      0 0 40px rgba(255,255,255,0.15);
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.25);
-  }
-
-  video {
-    width: 100%;
-    height: auto;
-    display: block;
-    background:#111;
-  }
-
-  .bubbleWrap {
-    position: absolute;
-    left: 50%;
-    bottom: 1rem;
-    transform: translateX(-50%);
-    text-align: center;
-    width: calc(100% - 2rem);
-    max-width: 380px;
-  }
-
-  .bubbleMain {
-    background: rgba(255,255,255,0.9);
-    border-radius: 20px;
-    box-shadow:
-      0 20px 40px rgba(255,182,193,0.4),
-      0 0 30px rgba(255,255,255,0.6);
-    padding: 14px 18px 10px;
-    font-size: 1.2rem;
-    line-height: 1.4;
-    color:#333;
-    text-shadow: 0 0 8px rgba(255,255,255,0.7);
-    font-weight:500;
-    min-height: 2.4em;
-    animation: float 3s ease-in-out infinite;
-    white-space: normal;
-    word-break: keep-all;
-  }
-
-  .bubbleSub {
-    margin-top: 8px;
-    color:#fff;
-    font-size: 0.9rem;
-    line-height:1.4;
-    font-weight:400;
-    text-shadow:0 0 8px rgba(0,0,0,0.8);
-  }
-
-  @keyframes float {
-    0%,100% { transform: translateY(0px); }
-    50%     { transform: translateY(-4px); }
-  }
-</style>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.6"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-</head>
-
-<body>
-  <div class="frame">
-    <video id="webcam" autoplay playsinline muted></video>
-
-    <div class="bubbleWrap">
-      <div id="bubbleMain" class="bubbleMain">🐇　解析中…</div>
-      <div id="bubbleSub" class="bubbleSub">AIが考え中だよ（信頼度 0%）</div>
-    </div>
-  </div>
-
 <script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/-NL3fIAqm/";
 
@@ -110,6 +8,13 @@ const bubbleSub  = document.getElementById("bubbleSub");
 let model;
 let recentResults = [];
 
+// 小さいキャンバスを作って、映像のざっくり情報を見る用
+const senseCanvas = document.createElement("canvas");
+senseCanvas.width = 64;
+senseCanvas.height = 64;
+const senseCtx = senseCanvas.getContext("2d");
+
+// 感情メッセージ
 function moodMessage(label, percentStr) {
   const lower = label.toLowerCase();
 
@@ -117,13 +22,13 @@ function moodMessage(label, percentStr) {
     return { main: "💤 おだやかモード", sub: "安心してのんびり中（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("curious")) {
-    return { main: "🐰❓ 興味津々！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
+    return { main: "🐰❓ きょうみしんしん！", sub: "新しいものをチェックしてるよ（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("alert")) {
     return { main: "⚡ ピーン！警戒中", sub: "音や動きをじっと見てる（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("groom")) {
-    return { main: "✨ きれいきれいタイム", sub: "毛づくろいしてるよ（信頼度 " + percentStr + "）" };
+    return { main: "🫧 きれいきれいタイム", sub: "毛づくろいしてるよ（信頼度 " + percentStr + "）" };
   }
   if (lower.includes("happy")) {
     return { main: "💗 はしゃぎモード！", sub: "ぴょんぴょん跳ねてごきげん（信頼度 " + percentStr + "）" };
@@ -132,6 +37,51 @@ function moodMessage(label, percentStr) {
     return { main: "💢 足ダン発動！？", sub: "ちょっとイラッとしてるかも（信頼度 " + percentStr + "）" };
   }
   return { main: "🐇 " + label, sub: "AIの推定だよ（信頼度 " + percentStr + "）" };
+}
+
+// 映像に「それっぽいものが映ってるか」チェックする関数
+function looksLikeSomethingIsThere() {
+  // いまのフレームを小さくコピー
+  senseCtx.drawImage(videoEl, 0, 0, senseCanvas.width, senseCanvas.height);
+  const imgData = senseCtx.getImageData(0, 0, senseCanvas.width, senseCanvas.height).data;
+
+  // 明るさの平均と分散っぽいものを見る
+  let sum = 0;
+  let sumSq = 0;
+  const totalPixels = senseCanvas.width * senseCanvas.height;
+
+  for (let i = 0; i < imgData.length; i += 4) {
+    // 明るさ（R,G,Bの平均）
+    const r = imgData[i];
+    const g = imgData[i+1];
+    const b = imgData[i+2];
+    const brightness = (r + g + b) / 3;
+    sum += brightness;
+    sumSq += brightness * brightness;
+  }
+
+  const mean = sum / totalPixels;
+  const variance = (sumSq / totalPixels) - (mean * mean);
+  const stddev = Math.sqrt(Math.max(variance, 0));
+
+  // 条件：
+  // - 画面がほぼ真っ暗（mean がめっちゃ低い）
+  // - 画面がほぼ真っ白（mean がめっちゃ高い）
+  // - ほとんど同じ色だけ（stddev が小さすぎ）
+  //
+  // こういうときは「何もいない/ちゃんと映ってない」扱いにする
+  if (mean < 15) {        // ほぼ真っ暗
+    return false;
+  }
+  if (mean > 240) {       // ほぼ真っ白
+    return false;
+  }
+  if (stddev < 5) {       // ほぼ同じ色だけ（=床しか映ってない、壁だけ等）
+    return false;
+  }
+
+  // それっぽい何かは映ってる
+  return true;
 }
 
 async function init() {
@@ -163,8 +113,13 @@ async function init() {
 async function loop() {
   if (model && videoEl.readyState === 4) {
     try {
+      // まず「そもそも何か映ってる？」チェック
+      const hasBunnyLikeContent = looksLikeSomethingIsThere();
+
       const predictions = await model.predict(videoEl);
+
       if (predictions && predictions.length > 0) {
+        // 一番確率高いクラスを見つける
         let best = predictions[0];
         for (let i = 1; i < predictions.length; i++) {
           if (predictions[i].probability > best.probability) {
@@ -172,23 +127,31 @@ async function loop() {
           }
         }
 
-        // 🩵 追加：映っていない時は「解析中」
-        if (best.probability < 0.5) {
+        // 「何もいないっぽい」または「確信度が低い」場合は解析中にする
+        if (!hasBunnyLikeContent || best.probability < 0.5) {
           bubbleMain.textContent = "🐇 解析中…";
-          bubbleSub.textContent  = "AIが考え中だよ（信頼度 " + (best.probability * 100).toFixed(1) + "%）";
+          bubbleSub.textContent  =
+            "AIが考え中だよ（信頼度 " +
+            (best.probability * 100).toFixed(1) +
+            "%）";
           requestAnimationFrame(loop);
           return;
         }
 
+        // 安定化のために最近10回のラベルを取って多数決
         recentResults.push(best.className);
         if (recentResults.length > 10) recentResults.shift();
 
-        const majority = recentResults.sort((a,b) =>
-          recentResults.filter(v=>v===a).length - recentResults.filter(v=>v===b).length
-        ).pop();
+        const majority = recentResults
+          .sort((a,b) =>
+            recentResults.filter(v=>v===a).length -
+            recentResults.filter(v=>v===b).length
+          )
+          .pop();
 
         const percentStr = (best.probability * 100).toFixed(1) + "%";
         const msg = moodMessage(majority, percentStr);
+
         bubbleMain.textContent = msg.main;
         bubbleSub.textContent  = msg.sub;
       }
@@ -197,10 +160,9 @@ async function loop() {
       bubbleSub.textContent  = err.message;
     }
   }
+
   requestAnimationFrame(loop);
 }
 
 init();
 </script>
-</body>
-</html>
